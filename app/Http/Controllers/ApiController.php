@@ -126,7 +126,13 @@ class ApiController extends Controller
                     $record = RecordRequest::where('REQUESTID', $id)
                         ->first()
                         ->update([
-                            'STATUS' => 3, // record not found
+                            'STATUS' => 1, // record not found
+                        ]);
+
+                        return response()->json([
+                            'success'   => true,
+                            'status'    => 200,
+                            'message'   => 'No record/s found'
                         ]);
                 }
 
@@ -141,7 +147,7 @@ class ApiController extends Controller
                 $record = RecordRequest::where('REQUESTID', $id)
                     ->first()
                     ->update([
-                        'STATUS' => 5, // Server error in the aguirre api client 
+                        'STATUS' => 4, // Server error in the aguirre api client 
                     ]);
 
                 return response()->json([
@@ -199,8 +205,8 @@ class ApiController extends Controller
                 $_res->AREA       = $value->details[0]->jurisdiction;
                 $_res->TERMSTART  = $value->details[0]->hired;
                 $_res->TERMEND    = $value->details[0]->resigned;
+                $_res->WITHHIT    = 1; // has a case
                 
-
                 if ($full_name != $value->firstname . ' ' . $value->lastname) {
                     $ctr++;
                     $seq = 1;
@@ -216,15 +222,18 @@ class ApiController extends Controller
                 array_push($temp, $_res);
             }
             
-            // update the status to success
-            $record->STATUS = 1;
+            // update the status to with hit 
+            // meaning it has criminal case or administrative case
+
+            $record->STATUS = 2;
             $record->save();
             
             DB::commit();
             return response()->json([
                 'success'   => true,
-                'status'    => 201,
-                'message'   => 'Successfuly created a new record'
+                'status'    => 200,
+                'message'   => 'Record/s found',
+                'data'      => $data
             ]);
         } catch (\Exception $e) {
             DB::rollback();
