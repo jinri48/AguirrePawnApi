@@ -9,4 +9,6 @@ class RecordResponse extends Model
     protected $table    = 'Responses';
     public $timestamps  = false;
 
+    protected $primaryKey = 'RESPONSEID';
+
 }

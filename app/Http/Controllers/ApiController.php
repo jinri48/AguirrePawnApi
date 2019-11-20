@@ -124,10 +124,13 @@ class ApiController extends Controller
                 $msg = json_decode((string) $request_results->getBody())->message; // error message in aguirre api client
                 if ($msg == 'record could not be found') {
                     $record = RecordRequest::where('REQUESTID', $id)
+                        ->first()
                         ->update([
                             'STATUS' => 3, // record not found
                         ]);
                 }
+
+                // dd($record);
                 return response()->json([
                     'success'   => false,
                     'status'    => 404,
@@ -136,6 +139,7 @@ class ApiController extends Controller
             } else if ($request_results->getStatusCode() == 500) {
 
                 $record = RecordRequest::where('REQUESTID', $id)
+                    ->first()
                     ->update([
                         'STATUS' => 5, // Server error in the aguirre api client 
                     ]);
@@ -162,17 +166,6 @@ class ApiController extends Controller
 
             //get the record of the request to get the name and status 
             $record = RecordRequest::where('REQUESTID', '=', $id)->first();
-            // if (is_null($record)) {
-            //     //  TODO: send a response error status
-
-            //     return response()->json([
-            //         'success'   => false,
-            //         'status'    => 404,
-            //         'message'      => 'Request ID not found'
-            //     ]);
-            // }
-
-
 
             /*
             * Manipulate the data to save to DB 
@@ -198,14 +191,15 @@ class ApiController extends Controller
                 $_res->RESPONSEID = $last_resp_id;
                 $_res->REQUESTID  = $record->REQUESTID;
                 $_res->FIRSTNAME  = $value->firstname;
-                $_res->LASTNAME   = $value->lastname;
                 $_res->MIDDLENAME = $value->midname;
+                $_res->LASTNAME   = $value->lastname;
                 $_res->SUFFIX     = $value->suffix;
                 $_res->DATETIME   = now();
                 $_res->POSITION   = $value->details[0]->position;
+                $_res->AREA       = $value->details[0]->jurisdiction;
                 $_res->TERMSTART  = $value->details[0]->hired;
                 $_res->TERMEND    = $value->details[0]->resigned;
-
+                
 
                 if ($full_name != $value->firstname . ' ' . $value->lastname) {
                     $ctr++;
@@ -221,7 +215,11 @@ class ApiController extends Controller
                 $full_name =  $value->firstname . ' ' . $value->lastname;
                 array_push($temp, $_res);
             }
-
+            
+            // update the status to success
+            $record->STATUS = 1;
+            $record->save();
+            
             DB::commit();
             return response()->json([
                 'success'   => true,

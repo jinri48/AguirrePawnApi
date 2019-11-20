@@ -14,8 +14,9 @@ class RecordRequest extends Model
     protected $table    = 'Requests';
     public $timestamps  = false;
 
+    protected $primaryKey = 'REQUESTID';
     protected $fillable = [
-        'status'
+        'STATUS'
     ];
    
     // protected $maps = [  
