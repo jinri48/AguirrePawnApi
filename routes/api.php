@@ -29,3 +29,6 @@ use App\Library\Helper;
 Route::post('/records/show',        'ApiController@testConnect'); // test connection
 Route::post('/records/{id}',        'ApiController@show'); // 
 Route::post('/records/{id}/create', 'ApiController@store'); //pull the record then store 
+
+Route::any('/records/{id}',        'ApiController@show');
+Route::any('/records/{id}/create', 'ApiController@store'); //pull the record then store 
