@@ -32,3 +32,5 @@ Route::post('/records/{id}/create', 'ApiController@store'); //pull the record th
 
 Route::any('/records/{id}',        'ApiController@show');
 Route::any('/records/{id}/create', 'ApiController@store'); //pull the record then store 
+
+Route::post('/records/{id}/store', 'ApiController@store2');
