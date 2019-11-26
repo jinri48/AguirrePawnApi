@@ -11,4 +11,6 @@ class RecordResponse extends Model
 
     protected $primaryKey = 'RESPONSEID';
 
+
+    
 }
