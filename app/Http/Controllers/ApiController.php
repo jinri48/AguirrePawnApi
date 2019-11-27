@@ -208,11 +208,15 @@ class ApiController extends Controller
                 
                 $last_resp = RecordResponse::on($conn)->orderby('RESPONSEID', 'desc')->first();
                 $last_resp_id = 0;
+               
                 
                 if (!is_null($last_resp)) {
                     $last_resp_id = $last_resp->RESPONSEID;
+                    $ctr = $last_resp->LINENO;
                 }
-                // dd($last_resp_id);
+
+                
+               
                 // save each detail
                 foreach ($data as $key => $value) {
 

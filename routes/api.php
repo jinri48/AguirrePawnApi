@@ -27,6 +27,6 @@ use App\Library\Helper;
 
 
 Route::get('/records/{db}/show',         'ApiController@show'); // test connection
-Route::post('/records/{db}/{id}/create', 'ApiController@store'); // 
+Route::any('/records/{db}/{id}/create', 'ApiController@store'); // 
 
 
