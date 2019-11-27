@@ -20,7 +20,7 @@ use GuzzleHttp\Exception\ServerException;
 class ApiController extends Controller
 {
 
-    public function testConnect()
+    public function testConnect(Request $request)
     {
 
         $u = 'mbaguirre';
@@ -35,7 +35,7 @@ class ApiController extends Controller
 
         ]);
 
-        $search_name = "roque";
+        $search_name = $request;
         if (!isset($search_name)) {
             return "Please provide a valid name";
         }
@@ -51,35 +51,59 @@ class ApiController extends Controller
         return $response;
     }
 
-
-    public function show($id)
+    public function show($conn, Request $request)
     {
 
-        // get the id and the keyword of the request 
+         // configure the connection 
 
-        $record = RecordRequest::where('REQUESTID', '=', $id)->first();
-
-
-        if (is_null($record)) {
-
-            $status = 404;
-            $headers = [];
-            $body = json_encode([
+         if ($conn == 1) {
+            $conn = 'sqlsrv';
+        } else if ($conn == 2) {
+            $conn = 'sqlsrv2';
+        } else {
+            return response()->json([
                 'success'   => false,
                 'status'    => 404,
-                'message'      => 'Request ID not found'
-            ]);
-            $protocol = '1.1';
-            $response = new Response($status, $headers, $body, $protocol);
-            // $r = response()->json([
-            //     'success'   => false,
-            //     'status'    => 404,
-            //     'message'=> 'Request ID not found'
-            // ], 404);
+                'message'   => 'connection does not exist',
 
-            // dd($r->getData());
-            return $response;
+            ], 404);
         }
+
+        if(!is_null($request->id)){
+              // get the id and the keyword of the request 
+            $record = RecordRequest::on($conn)->where('REQUESTID', '=', $request->id)->first();
+
+            if (is_null($record)) {
+
+                $status = 404;
+                $headers = [];
+                $body = json_encode([
+                    'success'   => false,
+                    'status'    => 404,
+                    'message'      => 'Request ID not found'
+                ]);
+                $protocol = '1.1';
+                $response = new Response($status, $headers, $body, $protocol);
+                // $r = response()->json([
+                //     'success'   => false,
+                //     'status'    => 404,
+                //     'message'=> 'Request ID not found'
+                // ], 404);
+    
+                // dd($r->getData());
+                return $response;
+            }
+
+            $keyword = trim($record->ACCOUNTNAME);
+
+        }else if (!is_null($request->keyword)){
+            
+            $keyword = trim($request->keyword);
+
+        }else{
+            return response()->json([], 404);
+        }
+      
 
         /*
         * Connect to aguire external api
@@ -96,15 +120,8 @@ class ApiController extends Controller
             'base_uri' => $uri,
         ]);
 
-        $keyword = trim($record->ACCOUNTNAME);
-        // $keyword  = "Harry Roque";
-        if (!isset($keyword)) {
-            return "Please provide a valid name";
-        }
-
         // Send a request to Aguire api  
         try {
-
             $response = $client->request('GET', $keyword);
         } catch (ConnectException $e) {
             $response = $e->getMessage();
@@ -118,141 +135,11 @@ class ApiController extends Controller
     }
 
 
-    public function store($id)
+    public function store($conn, $id)
     {
-        $request_results = $this->show($id);
 
-        if ($request_results->getStatusCode() != 200) {
-            
-            if ($request_results->getStatusCode() == 404) {
-                $msg = json_decode((string) $request_results->getBody())->message; // error message in aguirre api client
-                if ($msg == 'record could not be found') {
-                    $record = RecordRequest::where('REQUESTID', $id)
-                        ->first()
-                        ->update([
-                            'STATUS' => 1, // record not found
-                        ]);
+        // configure the connection 
 
-                    return response()->json([
-                        'success'   => true,
-                        'status'    => 200,
-                        'message'   => 'No record found'
-                    ]);
-                }
-
-                // dd($record);
-                return response()->json([
-                    'success'   => false,
-                    'status'    => 404,
-                    'message'   => $msg
-                ]);
-            } else if ($request_results->getStatusCode() == 500) {
-
-                $record = RecordRequest::where('REQUESTID', $id)
-                    ->first()
-                    ->update([
-                        'STATUS' => 4, // Server error in the aguirre api client 
-                    ]);
-
-                return response()->json([
-                    'success'   => false,
-                    'status'    => 500,
-                    'message'   => $msg
-                ]);
-            } else {
-                return json_decode((string) $request_results);
-            }
-        }
-
-
-        try {
-
-            DB::beginTransaction();
-
-            $resData = $request_results->getBody();
-
-            // transform the json to object
-            $data = json_decode($resData);
-
-            //get the record of the request to get the name and status 
-            $record = RecordRequest::where('REQUESTID', '=', $id)->first();
-
-            /*
-            * Manipulate the data to save to DB 
-            */
-            $full_name = '';
-            $ctr = 0;
-            $seq = 0;
-            $temp = []; //checker 
-
-            $last_resp = RecordResponse::orderby('RESPONSEID', 'desc')->first();
-            $last_resp_id = 0;
-
-            if (!is_null($last_resp)) {
-                $last_resp_id = $last_resp->RESPONSEID;
-            }
-
-            // save each detail
-            foreach ($data as $key => $value) {
-
-                $last_resp_id = $last_resp_id + 1;
-                $_res = new RecordResponse();
-
-                $_res->RESPONSEID = $last_resp_id;
-                $_res->REQUESTID  = $record->REQUESTID;
-                $_res->FIRSTNAME  = $value->firstname;
-                $_res->MIDDLENAME = $value->midname;
-                $_res->LASTNAME   = $value->lastname;
-                $_res->SUFFIX     = $value->suffix;
-                $_res->DATETIME   = now();
-                $_res->POSITION   = $value->details[0]->position;
-                $_res->AREA       = $value->details[0]->jurisdiction;
-                $_res->TERMSTART  = $value->details[0]->hired;
-                $_res->TERMEND    = $value->details[0]->resigned;
-                $_res->WITHHIT    = 1; // has a case
-                $_res->DECEASED   = $value->deceased;
-
-                if ($full_name != $value->firstname . ' ' . $value->lastname) {
-                    $ctr++;
-                    $seq = 1;
-                }
-
-                $_res->SEQUENCEID = $seq;
-                $_res->LINENO = $ctr;
-                $seq++;
-
-                $_res->save();
-
-                $full_name =  $value->firstname . ' ' . $value->lastname;
-                array_push($temp, $_res);
-            }
-
-            // update the status to with hit 
-            // meaning it has criminal case or administrative case
-
-            $record->STATUS = 2;
-            $record->save();
-
-            DB::commit();
-            return response()->json([
-                'success'   => true,
-                'status'    => 200,
-                'message'   => 'Record/s found',
-                'data'      => $data
-            ]);
-        } catch (\Exception $e) {
-            DB::rollback();
-            Log::error($e->getMessage());
-            abort(500);
-        }
-    }
-
-
-
-
-    public function store2($conn, $id)
-    {
-        // db 2
         if ($conn == 1) {
             // $rq->setConnection('sqlsrv');
             $conn = 'sqlsrv';
@@ -268,9 +155,7 @@ class ApiController extends Controller
         }
 
         try {
-
             DB::beginTransaction();
-
             $rq = new RecordRequest();
             $rq->setConnection($conn);
             $record = $rq->find($id);
@@ -282,6 +167,7 @@ class ApiController extends Controller
                     'message' => 'Request ID not found'
                 ], 404);
             }
+
             /**
              * Connect to aguire external api
              **/
@@ -299,109 +185,78 @@ class ApiController extends Controller
 
 
             $keyword = trim($record->ACCOUNTNAME);
-            if (!isset($keyword)) {
+            if (!isset($keyword) || is_null($keyword)) {
                 return "Please provide a valid name";
             }
 
             $response = $client->request('GET', $keyword);
 
-            if ($response->getStatusCode() != 200) {
-                $msg = json_decode((string) $response->getBody())->message;
+            if ($response->getStatusCode() == 200) {
 
-                if ($response->getStatusCode() == 404) {
-                    if ($msg == 'record could not be found') {
-                        $record->STATUS = 1; // record not found
-                        $record->save();
-                        return response()->json([
-                            'success'   => true,
-                            'status'    => 200,
-                            'message'   => 'No record found'
-                        ]);
+                $resData = $response->getBody();
+
+                // transform the json to object
+                $data = json_decode($resData);
+
+                /*
+                 * Manipulate the data to save to DB 
+                */
+                $full_name = '';
+                $ctr = 0;
+                $seq = 0;
+                $temp = []; //checker 
+                
+                $last_resp = RecordResponse::on($conn)->orderby('RESPONSEID', 'desc')->first();
+                $last_resp_id = 0;
+                
+                if (!is_null($last_resp)) {
+                    $last_resp_id = $last_resp->RESPONSEID;
+                }
+                // dd($last_resp_id);
+                // save each detail
+                foreach ($data as $key => $value) {
+
+                    $last_resp_id = $last_resp_id + 1;
+                    
+                    $_res = new RecordResponse();
+                    $_res = $_res->setConnection($conn);
+
+
+                    $_res->RESPONSEID = $last_resp_id;
+                    $_res->REQUESTID  = $record->REQUESTID;
+                    $_res->FIRSTNAME  = $value->firstname;
+                    $_res->MIDDLENAME = $value->midname;
+                    $_res->LASTNAME   = $value->lastname;
+                    $_res->SUFFIX     = $value->suffix;
+                    $_res->DATETIME   = now();
+                    $_res->POSITION   = $value->details[0]->position;
+                    $_res->AREA       = $value->details[0]->jurisdiction;
+                    $_res->TERMSTART  = $value->details[0]->hired;
+                    $_res->TERMEND    = $value->details[0]->resigned;
+                    $_res->WITHHIT    = 1; // has a case
+                    $_res->DECEASED   = $value->deceased;
+
+                    if ($full_name != $value->firstname . ' ' . $value->lastname) {
+                        $ctr++;
+                        $seq = 1;
                     }
 
-                    return response()->json([
-                        'success'   => false,
-                        'status'    => 404,
-                        'message'   => $msg
-                    ]);
-                } else if ($response->getStatusCode() == 500) {
-                    $record->STATUS = 4; // Server error in the aguirre api client
+                    $_res->SEQUENCEID = $seq;
+                    $_res->LINENO = $ctr;
+                    $seq++;
+
+                    $_res->save();
+
+                    $full_name =  $value->firstname . ' ' . $value->lastname;
+                    array_push($temp, $_res);
+
+                    // update the status to with hit 
+                    // meaning it has criminal case or administrative case
+                    $record->STATUS = 2;
                     $record->save();
 
-                    return response()->json([
-                        'success'   => false,
-                        'status'    => 500,
-                        'message'   => $msg
-                    ]);
-                } else {
-                    return json_decode((string) $response);
                 }
             }
-
-            $resData = $response->getBody();
-
-
-            // transform the json to object
-            $data = json_decode($resData);
-
-            /*
-            * Manipulate the data to save to DB 
-            */
-            $full_name = '';
-            $ctr = 0;
-            $seq = 0;
-            $temp = []; //checker 
-
-
-            $last_resp = RecordResponse::orderby('RESPONSEID', 'desc')->first();
-            $last_resp_id = 0;
-
-            if (!is_null($last_resp)) {
-                $last_resp_id = $last_resp->RESPONSEID;
-            }
-
-            // save each detail
-            foreach ($data as $key => $value) {
-
-                $last_resp_id = $last_resp_id + 1;
-
-                $_res = new RecordResponse();
-                $_res = $_res->setConnection($conn);
-
-                $_res->RESPONSEID = $last_resp_id;
-                $_res->REQUESTID  = $record->REQUESTID;
-                $_res->FIRSTNAME  = $value->firstname;
-                $_res->MIDDLENAME = $value->midname;
-                $_res->LASTNAME   = $value->lastname;
-                $_res->SUFFIX     = $value->suffix;
-                $_res->DATETIME   = now();
-                $_res->POSITION   = $value->details[0]->position;
-                $_res->AREA       = $value->details[0]->jurisdiction;
-                $_res->TERMSTART  = $value->details[0]->hired;
-                $_res->TERMEND    = $value->details[0]->resigned;
-                $_res->WITHHIT    = 1; // has a case
-                $_res->DECEASED   = $value->deceased;
-
-                if ($full_name != $value->firstname . ' ' . $value->lastname) {
-                    $ctr++;
-                    $seq = 1;
-                }
-
-                $_res->SEQUENCEID = $seq;
-                $_res->LINENO = $ctr;
-                $seq++;
-
-                $_res->save();
-
-                $full_name =  $value->firstname . ' ' . $value->lastname;
-                array_push($temp, $_res);
-            }
-
-            // update the status to with hit 
-            // meaning it has criminal case or administrative case
-
-            $record->STATUS = 2;
-            $record->save();
 
             DB::commit();
             return response()->json([
@@ -410,23 +265,63 @@ class ApiController extends Controller
                 'message'   => 'Record/s found',
                 'data'      => $data
             ]);
+
         } catch (ConnectException $e) {
+
             DB::rollback();
+            $this->setStatus($conn, $id, 3); // timeout
             $response = $e->getMessage();
             return $response;
+
         } catch (ClientException $e) {
             DB::rollback();
-            $response  = $e->getResponse();
+            $response = $e->getResponse();
+            if (
+                $response->getStatusCode() == 404
+                && json_decode((string) $response->getBody())->message == 'record could not be found'
+            ) {
+                $this->setStatus($conn, $id, 1); // no record found == no hit
+                return response()->json([
+                    'success'   => false,
+                    'status'    => 404,
+                    'message' => 'No record found for '.$record->ACCOUNTNAME
+                ], 404);
+            }
+
+            $this->setStatus($conn, $id, 3); // timeout
+            Log::error($e->getMessage());
             return $response;
+        } catch (ServerException $e) {
+            DB::rollback();
+            $this->setStatus($conn, $id, 4); // external api
+            Log::error($e->getMessage());
+            return $e->getMessage();
+
         } catch (\Exception $e) {
             DB::rollback();
+            $this->setStatus($conn, $id, 5); // api
             Log::error($e->getMessage());
-            // abort(500);
             return $e->getMessage();
         }
     }
 
-    
+    public function setStatus($conn, $rec_id, $status)
+    {
+        try {
 
+            DB::beginTransaction();
+            $record = new RecordRequest();
+            $record->setConnection($conn);
+            $record = $record->findOrFail($rec_id);
+            $record->STATUS = $status;
+            $record->save();
 
+            DB::commit();
+            // return $record;
+        } catch (\Exception $e) {
+            DB::rollback();
+            Log::error($e->getMessage());
+            abort(500);
+        }
+    }
 }
