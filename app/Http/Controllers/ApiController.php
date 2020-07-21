@@ -174,7 +174,8 @@ class ApiController extends Controller
 
             $u = 'mbaguirre';
             $p = ')J4jVnt2';
-            $uri = 'https://' . $u . ':' . $p . '@kaisercheck.com/listing/pub/index.php/api/kaiser/check/';
+            // $uri = 'https://' . $u . ':' . $p . '@kaisercheck.com/listing/pub/index.php/api/kaiser/check/';
+            $uri = 'https://' . $u . ':' . $p . '@kaisercheck.com/listingv2/pub/index.php/api/kaiser/dtag/0/';
             $headers = ['KAISER-API-KEY' => "'memLdpB[B8r4!#*"];
 
             // Create a client with a base URI
